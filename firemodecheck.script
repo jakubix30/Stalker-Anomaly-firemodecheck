@@ -1,0 +1,91 @@
+-- FireModeCheck
+-- modified: 2021.10.09
+
+
+-- nazwy trybow --
+firing_mode_descriptions = {[1] = "Single", [2] = "Burst", [3] = "Burst", [-1] = "Full-Auto"}
+
+_tap_count = nil
+
+function on_game_start()
+    RegisterScriptCallback("on_key_press", on_key_press)
+
+end
+
+-- przycisk przekieruje do funkcji "show_firemode" --zrobic jeszcze w config/ui/keybinding   		<command id="kb_check_ammo"						exe="custom25"/>
+function on_key_press(key)
+	local bind = dik_to_bind(key)
+    if (bind == key_bindings.kCUSTOM24) then
+		show_firemode()
+	end
+end
+
+
+-- pokazuje tryb z "firing_mode_descriptions" i prosi o dane z "get_fire_mode"--
+function show_firemode()
+    CreateTimeEvent("firemode_check", "show_firemode_delayed", 0, show_firemode_delayed)
+end
+
+function show_firemode_delayed()
+    level.enable_input()
+    local current_mode = get_fire_mode()
+    local mode_description = firing_mode_descriptions[current_mode]
+    show_message(mode_description)
+    return true
+end
+
+function reset_taps()
+    CreateTimeEvent("firemode_check", "reset_taps_delayed", 0.5, reset_taps_delayed)
+end
+
+function reset_taps_delayed()
+    _tap_count = 0
+    return true
+end
+
+
+-- pozyskuje dane o trybie --
+function get_fire_mode()
+    local weapon = db.actor:active_item()
+    if weapon == nil or not IsWeapon(weapon) or IsItem("fake_ammo_wpn", nil, weapon) or not has_multiple_fire_modes(weapon) then
+        return
+    end
+
+    local cWeapon = weapon:cast_Weapon()
+    return (cWeapon and cWeapon:GetFireMode()) or 0
+end
+
+-- jesli bron ma wiele trybow --
+function has_multiple_fire_modes(weapon)
+    section = weapon:section()
+
+    local fire_modes = parse_list(ini_sys, section, "fire_modes")
+
+    if fire_modes and table.getn(fire_modes) > 1 then
+        return true
+    end
+
+    local has_firemode_upgrade = false
+
+    weapon:iterate_installed_upgrades(function(upgr_sec)
+        local upgr_prop_sec = ini_sys:r_string_ex(upgr_sec, "section")
+        if upgr_prop_sec then
+            local upgr_fire_modes = parse_list(ini_sys, upgr_prop_sec, "fire_modes")
+            if upgr_fire_modes and table.getn(upgr_fire_modes) > 1 then
+                has_firemode_upgrade = true
+                return true
+            end
+        end
+    end)
+
+    return has_firemode_upgrade
+end
+
+-- jesli ma wiele trbow pokaze, tryb od 2-4 --
+function show_message(message, ...)
+    if message and actor_menu then
+        actor_menu.set_msg(2, string.format(message, ...), 4)
+    end
+end
+
+
